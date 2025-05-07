@@ -25,7 +25,6 @@ class CysteriaClient:
         self.cipher = Fernet(encryption_key)
         self.obfuscator = TrafficObfuscator()
         self.error_handler = ErrorHandler()
-        self.token: Optional[str] = None
         self.marker: Optional[bytes] = None
         
         # 配置SSL上下文
@@ -42,23 +41,6 @@ class CysteriaClient:
                 ssl=self.ssl_context
             )
             
-            # 发送认证信息
-            auth_info = {
-                'client_id': platform.node(),
-                'platform': platform.platform(),
-                'version': '1.0.0'
-            }
-            
-            encrypted_auth = self.cipher.encrypt(json.dumps(auth_info).encode())
-            writer.write(encrypted_auth)
-            await writer.drain()
-            
-            # 等待认证响应
-            response = await reader.read(1024)
-            if response == b"Authentication failed":
-                logger.error("Authentication failed")
-                return
-                
             logger.info("Successfully connected to server")
             
             # 主循环

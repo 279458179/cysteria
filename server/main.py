@@ -27,7 +27,7 @@ class CysteriaServer:
         
         # 初始化各个组件
         self.obfuscator = TrafficObfuscator()
-        self.auth_manager = AuthenticationManager(os.getenv('AUTH_SECRET_KEY', 'default_secret_key'))
+        self.auth_manager = AuthenticationManager()  # 使用默认的公开访问密钥
         self.connection_pool = ConnectionPool()
         self.performance_monitor = PerformanceMonitor()
         self.error_handler = ErrorHandler()
@@ -48,22 +48,15 @@ class CysteriaServer:
             addr = writer.get_extra_info('peername')
             client_id = f"{addr[0]}:{addr[1]}"
             
-            # 处理客户端认证
-            auth_data = await reader.read(1024)
-            if not auth_data:
-                return
-                
-            # 解密认证数据
-            decrypted_data = self.cipher.decrypt(auth_data)
-            auth_info = json.loads(decrypted_data)
+            # 处理客户端连接
+            auth_info = {
+                'client_id': client_id,
+                'connected_at': time.time()
+            }
             
-            # 验证客户端
+            # 生成访问令牌
             token = self.auth_manager.authenticate_client(client_id, auth_info)
-            if not token:
-                writer.write(b"Authentication failed")
-                await writer.drain()
-                return
-                
+            
             # 添加到连接池
             if not await self.connection_pool.add_connection(client_id, reader, writer, token):
                 writer.write(b"Connection pool full")
