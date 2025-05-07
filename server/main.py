@@ -7,6 +7,11 @@ import json
 import os
 from dotenv import load_dotenv
 import time
+import sys
+import signal
+import daemon
+from pathlib import Path
+from config import SERVER_HOST, SERVER_PORT, setup
 
 from utils.obfuscator import TrafficObfuscator
 from utils.auth import AuthenticationManager
@@ -15,7 +20,14 @@ from utils.performance import PerformanceMonitor
 from utils.error_handler import ErrorHandler
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(Path(__file__).parent / 'logs' / 'server.log'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 class CysteriaServer:
@@ -152,18 +164,39 @@ class CysteriaServer:
         finally:
             self.connection_pool.stop_cleanup_task()
 
+def run_server():
+    """运行服务器"""
+    try:
+        # 初始化配置
+        if not setup():
+            sys.exit(1)
+            
+        # 创建服务器实例
+        server = CysteriaServer(SERVER_HOST, SERVER_PORT)
+        
+        # 运行服务器
+        logger.info(f"Server started on {SERVER_HOST}:{SERVER_PORT}")
+        asyncio.run(server.start())
+        
+    except Exception as e:
+        logger.error(f"Server error: {str(e)}")
+        sys.exit(1)
+
 def main():
-    # 加载环境变量
-    load_dotenv()
-    
-    # 创建服务器实例
-    server = CysteriaServer(
-        host=os.getenv('SERVER_HOST', '0.0.0.0'),
-        port=int(os.getenv('SERVER_PORT', 443))
-    )
-    
-    # 启动服务器
-    asyncio.run(server.start())
+    """主函数"""
+    # 检查是否以守护进程模式运行
+    if len(sys.argv) > 1 and sys.argv[1] == '--daemon':
+        # 创建守护进程
+        with daemon.DaemonContext(
+            working_directory=os.getcwd(),
+            umask=0o022,
+            signal_map={
+                signal.SIGTERM: lambda signo, frame: sys.exit(0)
+            }
+        ):
+            run_server()
+    else:
+        run_server()
 
 if __name__ == "__main__":
     main() 
