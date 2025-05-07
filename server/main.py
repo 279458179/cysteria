@@ -12,6 +12,7 @@ import signal
 import daemon
 from pathlib import Path
 from config import SERVER_HOST, SERVER_PORT, setup
+import random
 
 from utils.obfuscator import TrafficObfuscator
 from utils.auth import AuthenticationManager
@@ -29,6 +30,39 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+class CysteriaProtocol:
+    """Cysteria协议实现"""
+    def __init__(self):
+        self.version = "1.0"
+        self.magic = b"CYS"  # 协议魔数
+        
+    def verify_handshake(self, data):
+        """验证握手数据"""
+        if len(data) < 3:
+            return False, None
+        if data[:3] != self.magic:
+            return False, None
+        return True, data[3:]
+        
+    def encrypt_data(self, data, key):
+        """加密数据"""
+        # 使用XOR加密
+        encrypted = bytearray()
+        for i, byte in enumerate(data):
+            encrypted.append(byte ^ key[i % len(key)])
+        return bytes(encrypted)
+        
+    def decrypt_data(self, data, key):
+        """解密数据"""
+        # XOR解密
+        return self.encrypt_data(data, key)
+        
+    def obfuscate_traffic(self, data):
+        """混淆流量"""
+        # 添加随机填充
+        padding = os.urandom(random.randint(1, 10))
+        return padding + data
 
 class CysteriaServer:
     def __init__(self, host: str = '0.0.0.0', port: int = 443):
